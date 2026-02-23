@@ -1,0 +1,212 @@
+﻿project:
+  name: fraud_detection
+
+data:
+  source_file: notebooks/insuranceFraud.csv
+  raw_dir: data/raw
+  interim_dir: data/interim
+  processed_dir: data/processed
+  reports_dir: reports
+  models_dir: models
+
+pipeline:
+  random_state: 42
+  target_column: fraud_reported
+
+ingestion:
+  test_size: 0.25
+
+validation:
+  schema_file: insurance_fraud.yaml
+  required_files:
+    - train.csv
+    - test.csv
+  strict_column_match: true
+  fail_on_extra_columns: false
+  enforce_target_values: true
+  target_allowed_values: [Y, N]
+  null_tokens: ["", "?", "na", "n/a", "null", "none"]
+  max_duplicate_ratio: 0.02
+  claim_total_mismatch_ratio: 0.01
+  max_temporal_violation_ratio: 0.02
+  critical_missing_thresholds:
+    authorities_contacted: 0.20
+    collision_type: 0.45
+    property_damage: 0.45
+    police_report_available: 0.45
+  numeric_bounds:
+    age: { min: 18, max: 100 }
+    incident_hour_of_the_day: { min: 0, max: 23 }
+    number_of_vehicles_involved: { min: 1, max: 10 }
+    bodily_injuries: { min: 0, max: 5 }
+    witnesses: { min: 0, max: 10 }
+    auto_year: { min: 1990, max: 2035 }
+
+preprocessing:
+  placeholder_null_tokens: ["?", "", "na", "n/a", "null", "none"]
+  drop_duplicates: true
+  drop_all_na_rows: true
+  normalize_binary_categories: true
+  apply_smoten: false
+  save_label_encoder: true
+  categorical_fill_value: UNKNOWN
+  rename_columns_map:
+    capital-gains: capital_gains
+    capital-loss: capital_loss
+    policy_deductable: policy_deductible
+  categorical_value_maps:
+    insured_sex:
+      male: MALE
+      female: FEMALE
+      m: MALE
+      f: FEMALE
+    property_damage:
+      yes: "YES"
+      no: "NO"
+      y: "YES"
+      n: "NO"
+    police_report_available:
+      yes: "YES"
+      no: "NO"
+      y: "YES"
+      n: "NO"
+    fraud_reported:
+      yes: Y
+      no: N
+      y: Y
+      n: N
+      "1": Y
+      "0": N
+
+transformation:
+  text_columns:
+    - insured_occupation
+    - insured_hobbies
+    - incident_location
+    - incident_city
+    - auto_make
+    - auto_model
+  lowercase: true
+  remove_urls: true
+  remove_non_alphanumeric: true
+  remove_stopwords: true
+  apply_lemmatization: true
+  nltk_download_if_missing: true
+  enrich_dates: true
+
+feature_engineering:
+  train_input_file: train_processed.csv
+  test_input_file: test_processed.csv
+  train_output_file: train_features.csv
+  test_output_file: test_features.csv
+  output_manifest_file: feature_manifest.json
+  target_column: fraud_reported
+  text_source_columns:
+    - insured_occupation
+    - insured_hobbies
+    - incident_location
+    - incident_city
+    - auto_make
+    - auto_model
+  combined_text_column: combined_text
+  include_original_text_columns: false
+
+model_building:
+  train_input_file: train_features.csv
+  output_model_file: model.pkl
+  training_summary_output_file: model_training_summary.json
+  pipeline:
+    text_feature_column: combined_text
+    one_hot_handle_unknown: ignore
+    scaler_options: [standard, minmax, robust]
+    tfidf:
+      max_features: 4000
+      ngram_range: [1, 2]
+      min_df: 2
+      max_df: 0.95
+  algorithms:
+    - name: xgboost
+      enabled: true
+      use_scaler: false
+      params:
+        n_estimators: 300
+        learning_rate: 0.05
+        subsample: 0.9
+        colsample_bytree: 0.8
+        objective: binary:logistic
+        tree_method: hist
+        n_jobs: -1
+      grid_search:
+        max_depth: [4, 6]
+        min_child_weight: [1, 3]
+  grid_search:
+    cv: 5
+    scoring: roc_auc
+    n_jobs: -1
+    n_iter: 4
+
+model_evaluation:
+  test_input_file: test_features.csv
+  metrics_output_file: metrics.json
+  model_info_output_file: experiment_model_info.json
+  mlflow:
+    enabled: true
+    experiment_name: dvc-pipeline
+    tracking_uri: http://dev.mlflow.beazley.com
+    log_model_artifact_path: model
+
+drift_detection:
+  reference_data_file: train_features.csv
+  current_data_file: test_features.csv
+  metrics_input_file: metrics.json
+  output_report_file: drift_report.json
+  output_retrain_signal_file: retrain_signal.json
+  data_drift:
+    numeric_mean_shift_threshold: 0.20
+    categorical_psi_threshold: 0.20
+    drifted_feature_ratio_threshold: 0.30
+  concept_drift:
+    target_rate_delta_threshold: 0.05
+  model_drift:
+    metric_name: auc
+    relative_drop_threshold: 0.05
+  baseline:
+    source: s3
+    s3:
+      enabled: true
+      bucket: beazley-fraud-model-registry
+      region: us-east-1
+      key_prefix: fraud-detection/best-model
+      metrics_file_name: champion_metrics.json
+
+model_registration:
+  model_info_input_file: experiment_model_info.json
+  registration_output_file: model_registration.json
+  model_name: FraudDetectionPipelineModel
+  candidate_stage: Staging
+  mlflow:
+    enabled: true
+    tracking_uri: http://dev.mlflow.beazley.com
+
+model_promotion:
+  registration_input_file: model_registration.json
+  metrics_input_file: metrics.json
+  retrain_signal_input_file: retrain_signal.json
+  model_name: FraudDetectionPipelineModel
+  champion_stage: Production
+  archived_stage: Archived
+  promotion_metric: auc
+  metric_higher_is_better: true
+  aliases:
+    champion: champion
+    challenger: challenger
+  mlflow:
+    enabled: true
+    tracking_uri: http://dev.mlflow.beazley.com
+  s3:
+    enabled: true
+    bucket: beazley-fraud-model-registry
+    region: us-east-1
+    key_prefix: fraud-detection/best-model
+    model_file_name: champion_model.pkl
+    metrics_file_name: champion_metrics.json

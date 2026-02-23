@@ -1,0 +1,11 @@
+﻿[project]
+name = "fraud-detection-mlops"
+version = "0.2.0"
+description = "Enterprise MLOps fraud detection platform with environment-aware pipelines."
+authors = [{name = "Vishal", email = "vishal@gmail.com"}]
+
+[tool.setuptools]
+packages = {find = {}}
+
+[tool.setuptools.dynamic]
+dependencies = {file = "requirements.txt"}

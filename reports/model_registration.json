@@ -1,0 +1,8 @@
+{
+  "model_name": "FraudDetectionPipelineModel",
+  "version": "1",
+  "stage": "Staging",
+  "alias": "challenger",
+  "registered_model_uri": "models:/FraudDetectionPipelineModel/1",
+  "environment": "dev"
+}

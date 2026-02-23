@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: config-lint
+        name: configuration lint
+        entry: python src/core/config_lint.py
+        language: system
+        pass_filenames: false
+        always_run: true

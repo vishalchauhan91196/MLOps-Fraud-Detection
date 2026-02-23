@@ -1,0 +1,9 @@
+{
+  "environment": "dev",
+  "should_retrain": false,
+  "reason": {
+    "data_drift": false,
+    "concept_drift": false,
+    "model_drift": false
+  }
+}

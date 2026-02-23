@@ -1,0 +1,505 @@
+PROJECT FLOW - INSURANCE FRAUD DETECTION - MLOPS IMPLEMENTATION
+
+This document explains exactly what each stage does, how key functions behave, and what output gets generated.
+You can now follow the full pipeline without reading all modules.
+
+================================================================================
+0) End-to-end execution model
+================================================================================
+
+Pipeline order in `dvc.yaml`:
+`config_lint -> data_ingestion -> data_validation -> data_preprocessing -> feature_engineering -> model_building -> model_evaluation -> drift_detection -> model_registration -> model_promotion`
+
+How you usually run:
+1. Set environment: `APP_ENV=dev` (or `uat`/`prd`).
+2. Run `dvc repro` (full pipeline) or `dvc repro <stage>` (single stage).
+
+Key principle:
+- Every stage reads artifacts from previous stages and writes deterministic outputs.
+- If one stage fails, downstream stages do not execute.
+
+================================================================================
+1) Runtime bootstrap and config lint
+================================================================================
+
+Main files:
+- `src/core/settings.py`
+- `src/core/config_lint.py`
+- `configs/environments/base.yaml`
+- `configs/environments/{dev,uat,prd}.yaml`
+- `configs/contracts/runtime_required.yaml`
+
+What happens:
+1. `load_settings()` resolves active env from `APP_ENV` (default `dev`).
+2. `_load_settings_cached(env)` loads:
+   - `base.yaml`
+   - `<env>.yaml`
+   then deep-merges them (`_deep_merge`).
+3. `lint_all_environments()` in `config_lint.py` validates all env files against:
+   - required key paths and expected types from contract
+   - semantic rules (for example, `ingestion.test_size` must be in `(0,1)`).
+
+Key function behavior examples:
+- `_validate_required_key(config, "pipeline.random_state", "int", "dev")`
+  - If key missing: returns `["[dev] missing required key: pipeline.random_state"]`
+  - If present but wrong type (e.g., `"42"` string): returns type error message.
+- `_validate_semantics(...)`
+  - If `test_size=1.5`, emits: `ingestion.test_size must be between 0 and 1`.
+
+Output of this stage:
+- Boolean pass/fail in process memory and logs.
+- If lint fails, `ConfigurationError` is raised and pipeline stops before data stages.
+
+================================================================================
+2) Data ingestion (`src/data/ingestion.py`)
+================================================================================
+
+Input:
+- Source CSV path from config (for this project, insurance fraud source dataset).
+
+Core flow:
+1. `load_data(data_path)` reads CSV and fails if empty.
+2. `split_data(df, test_size, random_state, target_col)` does deterministic train/test split.
+3. `save_data(train_data, test_data, output_dir)` writes two files.
+
+Example behavior:
+- Input rows: 1000, `test_size=0.2`
+- Output:
+  - `train.csv`: ~800 rows
+  - `test.csv`: ~200 rows
+
+Generated artifacts:
+- `data/raw/train.csv`
+- `data/raw/test.csv`
+
+================================================================================
+3) Data validation (`src/data/validation.py`)
+================================================================================
+
+Inputs:
+- `data/raw/train.csv`, `data/raw/test.csv`
+- Schema file: `configs/schemas/insurance_fraud.yaml`
+- Validation thresholds from environment config.
+
+Core flow:
+1. `load_schema(schema_path)` loads schema YAML and checks it is a mapping.
+2. For each required raw file:
+   - check file exists and is non-empty
+   - run `validate_dataframe(...)`
+3. `validate_dataframe(...)` combines:
+   - `validate_schema_structure(...)`
+   - `validate_data_quality(...)`
+4. `write_validation_report(...)` writes final YAML report.
+
+What exactly is checked:
+- Column count and expected column names.
+- Missing required numeric/categorical columns.
+- Duplicate ratio threshold.
+- Critical-column missing-value ratio thresholds.
+- Allowed target labels (if enforcement enabled).
+- Numeric bounds per configured column.
+- Domain checks:
+  - claim components vs `total_claim_amount`
+  - temporal sanity (`incident_date >= policy_bind_date`).
+
+Example:
+- If `train.csv` has too many duplicates:
+  - Message like: `train.csv: duplicate ratio 0.1300 exceeds threshold 0.0500.`
+
+Generated artifact:
+- `reports/report.yaml`
+  - keys: `environment`, `validation_status`, `message`, `details`
+
+Important control point:
+- If `validation_status=false`, preprocessing intentionally fails fast.
+
+================================================================================
+4) Preprocessing (`src/data/preprocessing.py`)
+================================================================================
+
+Inputs:
+- `data/raw/train.csv`, `data/raw/test.csv`
+- `reports/report.yaml` (must be successful)
+- preprocessing and transformation config blocks.
+
+Execution order (main):
+1. `ensure_validation_passed(report_path)` gates stage execution.
+2. `load_data(...)` for train/test.
+3. `rename_columns(...)`
+4. `normalize_categorical_values(...)`
+5. `replace_placeholder_missing_values(...)`
+6. `drop_duplicates_and_empty_rows(...)`
+7. `coerce_numeric_columns(...)`
+8. `transform_dataframe(...)` from `src/data/transformation.py`
+9. `fill_missing_values(...)`
+10. target cleanup and `encode_target_column(...)`
+11. optional class balancing via `apply_smoten(...)`
+12. save outputs.
+
+Function examples:
+- `rename_columns(df, {"Policy Number":"policy_number"})`
+  - also normalizes format (`-`/spaces -> `_`, lowercase).
+- `replace_placeholder_missing_values(df, ["?", "NA", "unknown"])`
+  - converts those string tokens to `NaN` in object columns.
+- `coerce_numeric_columns(...)`
+  - if >=90% of values in an object column parse as numeric, column is cast numeric.
+- `encode_target_column(...)`
+  - train labels fitted via `LabelEncoder`, same mapping applied to test.
+  - unknown test labels trigger `DataPreprocessingError`.
+
+Outputs:
+- `data/interim/train_processed.csv`
+- `data/interim/test_processed.csv`
+- optional `models/label_encoder.pkl`
+
+================================================================================
+5) Transformation internals (`src/data/transformation.py`)
+================================================================================
+
+This module is called by preprocessing and is responsible for reusable text/date/sampling logic.
+
+Text path:
+1. `_get_nltk_resources(...)`
+   - loads tokenizer, stopwords, lemmatizer
+   - downloads missing corpora when enabled by config.
+2. `normalize_text(...)`
+   - optional lowercase
+   - URL removal
+   - tokenization (NLTK or regex fallback)
+   - punctuation/non-alphanumeric filtering
+   - optional stopword removal
+   - optional lemmatization.
+3. `transform_text_columns(...)`
+   - applies `normalize_text` only to configured text columns that exist in dataframe.
+
+Date path:
+- `enrich_date_features(df)` creates:
+  - `policy_bind_date_year/month/day`
+  - `incident_date_year/month/day`
+  - `policy_to_incident_days`
+  then drops original date columns if present.
+
+Sampling path:
+- `apply_smoten(X_train, y_train, enabled, random_state)`
+  - if disabled or unavailable, returns original data unchanged.
+  - if enabled and valid class distribution exists, oversamples minority using SMOTEN.
+
+Mini example (text):
+- raw text: `"Visit https://x.com NOW for the claim update!"`
+- normalized (lowercase/url removal/stopword removal): `"visit claim update"`
+
+================================================================================
+6) Feature engineering (`src/feature/feature_engineering.py`)
+================================================================================
+
+Inputs:
+- `data/interim/train_processed.csv`, `data/interim/test_processed.csv`
+
+Core functions:
+1. `build_feature_frame(...)`
+   - ensures target exists
+   - combines configured source text columns into one `combined_text_column`
+   - optionally drops original text columns
+   - keeps target as last column.
+2. `get_feature_manifest(...)`
+   - infers numeric vs categorical feature columns (excluding target and combined text).
+3. save artifacts.
+
+Example:
+- source text columns: `["incident_type", "incident_description"]`
+- combined output column: `combined_text`
+- resulting row excerpt:
+  - `combined_text = "<incident_type> <incident_description>"`
+
+Outputs:
+- `data/processed/train_features.csv`
+- `data/processed/test_features.csv`
+- `models/feature_manifest.json`
+  - includes `target_column`, `text_feature_column`, `numeric_columns`, `categorical_columns`.
+
+================================================================================
+7) Model building (`src/model/model_building.py`)
+================================================================================
+
+Inputs:
+- `data/processed/train_features.csv`
+- model and pipeline config.
+
+Core flow:
+1. `build_preprocessor(X, pipeline_cfg)` creates `ColumnTransformer` with:
+   - numeric passthrough
+   - categorical one-hot encoding
+   - text TF-IDF (`TfidfVectorizer`) on configured text feature column.
+2. For each enabled algorithm:
+   - `create_estimator(...)`
+   - `create_param_grid(...)`
+   - `train_candidate(...)` using `RandomizedSearchCV`.
+3. `train_and_select_best(...)` picks best CV score across candidates.
+4. `save_model(...)` serializes fitted best pipeline.
+5. training summary JSON is saved.
+
+Why TF-IDF is here:
+- TF-IDF is fitted inside CV folds via sklearn pipeline, preventing leakage and keeping training/inference preprocessing consistent.
+
+Outputs:
+- `models/model.pkl`
+- `models/model_training_summary.json`
+  - includes selected algorithm, selected CV score, and candidate summaries.
+
+================================================================================
+8) Model evaluation (`src/model/model_evaluation.py`)
+================================================================================
+
+Inputs:
+- `models/model.pkl`
+- `data/processed/test_features.csv`
+
+Core flow:
+1. `load_model(...)`
+2. `load_data(...)`
+3. split into `X_test`, `y_test`
+4. `evaluate_model(clf, X_test, y_test)` computes:
+   - accuracy, balanced_accuracy, precision, recall, f1, auc, pr_auc, log_loss
+   - confusion matrix
+   - classification report.
+5. Save JSON outputs.
+6. If MLflow enabled:
+   - configure tracking URI/experiment
+   - log params/metrics/artifacts
+   - persist model URI and run metadata.
+
+Example output snippet (`reports/metrics.json`):
+- `{ "accuracy": 0.86, "f1": 0.79, "auc": 0.91, ... }`
+
+Generated artifacts:
+- `reports/metrics.json`
+- `reports/evaluation_diagnostics.json`
+- `reports/experiment_model_info.json`
+
+================================================================================
+9) Drift detection (`src/drift_detection/run.py` and submodules)
+================================================================================
+
+Inputs:
+- Reference and current processed datasets
+- Current metrics (`reports/metrics.json`)
+- Optional baseline metric from S3 (for model drift).
+
+Flow in `run.py`:
+1. Load data/metrics via helpers in `common.py`.
+2. Run:
+   - `detect_data_drift(...)`
+   - `detect_concept_drift(...)`
+   - `detect_model_drift(...)`
+3. Combine statuses into one `should_retrain` decision.
+4. Save full drift report + retrain signal.
+
+Drift semantics:
+- Data drift:
+  - What this means:
+    - The input data itself has changed compared to the data used to train/benchmark the model (feature distribution shift).
+    - Example: average claim amount, age distribution, or category mix (vehicle types) is no longer similar to the reference period.
+  - Scope:
+    - Uses all common feature columns between reference and current datasets, excluding the target column.
+  - Numeric features:
+    - Computes reference mean and current mean.
+    - Calculates relative shift:
+      - `shift = abs(current_mean - reference_mean) / denom`
+      - where `denom = abs(reference_mean)` and falls back to `1.0` when reference mean is near zero.
+    - Marks feature drifted if `shift > numeric_mean_shift_threshold`.
+  - Categorical features:
+    - Builds normalized category distributions for reference and current.
+    - Computes PSI-like score:
+      - `sum((cur_i - ref_i) * ln(cur_i / ref_i))` over union of categories.
+      - Missing categories are handled with a small epsilon to avoid divide-by-zero.
+    - Marks feature drifted if `psi_score > categorical_psi_threshold`.
+  - Final data drift decision:
+    - `drifted_feature_ratio = number_of_drifted_features / total_checked_features`
+    - `status = drifted_feature_ratio > drifted_feature_ratio_threshold`
+  - Output shape:
+    - `status`
+    - `drifted_feature_ratio`
+    - `drifted_feature_ratio_threshold`
+    - `drifted_features` list with entries like:
+      - `{"feature":"age","type":"numeric_mean_shift","score":0.31,"threshold":0.20}`
+- Concept drift:
+  - What this means:
+    - The relationship between inputs and target behavior has changed over time.
+    - In this project, we proxy this by checking whether fraud prevalence (`fraud_reported` rate) changed meaningfully between windows.
+  - Purpose:
+    - Detects whether target prevalence changes significantly between reference and current windows.
+  - Computation:
+    - Converts target values to numeric and computes mean in each dataset:
+      - `reference_target_rate`
+      - `current_target_rate`
+    - `delta = abs(current_target_rate - reference_target_rate)`
+    - `status = delta > target_rate_delta_threshold`
+  - Edge case:
+    - If target column is missing in either dataset, function returns `status=false` with a message explaining the check was skipped.
+  - Output shape:
+    - `status`
+    - `reference_target_rate`
+    - `current_target_rate`
+    - `delta`
+    - `threshold`
+- Model drift:
+  - What this means:
+    - The trained model is performing worse than the previously accepted baseline/champion model.
+    - This is performance degradation drift, not raw data distribution drift.
+  - Purpose:
+    - Detects degradation in model quality compared with the champion baseline metric stored in S3.
+  - Inputs:
+    - `current_metrics` (from `reports/metrics.json`)
+    - `metric_name` and `relative_drop_threshold` from config
+    - `baseline_metric` fetched from S3 (`champion_metrics.json`) when available.
+  - Computation:
+    - Reads `current_metric = current_metrics[metric_name]`.
+    - If no baseline is available (bootstrap run), returns `status=false` with explanatory message.
+    - Otherwise computes:
+      - `relative_drop = max(0, (baseline_metric - current_metric) / denom)`
+      - where `denom = abs(baseline_metric)` and falls back to `1.0` near zero.
+    - `status = relative_drop > relative_drop_threshold`
+  - Interpretation:
+    - Example: baseline AUC `0.90`, current AUC `0.84` -> drop `0.06/0.90 = 0.0667` (6.67%).
+    - If threshold is `0.05`, this is flagged as model drift (`status=true`).
+  - Output shape:
+    - `status`
+    - `metric_name`
+    - `current_metric`
+    - `baseline_metric`
+    - `relative_drop`
+    - `relative_drop_threshold`
+
+Outputs:
+- `reports/drift_report.json`
+- `reports/retrain_signal.json`
+
+Example retrain signal:
+- `{ "should_retrain": true, "reason": {"data_drift": false, "concept_drift": true, "model_drift": false} }`
+
+================================================================================
+10) Model registration (`src/model/register_model.py`)
+================================================================================
+
+Input:
+- `reports/experiment_model_info.json`
+
+What happens:
+1. Read evaluated model info (`model_uri`, metrics, env).
+2. Register model version in MLflow Model Registry.
+3. Move candidate to configured stage (for example `Staging`).
+4. Tag the same candidate version with challenger alias (for example `challenger`).
+
+Output:
+- `reports/model_registration.json`
+  - contains:
+    - `model_name`
+    - `version`
+    - `stage`
+    - `alias` (for example, `challenger`; later promotion may set `champion`)
+    - `registered_model_uri`
+    - `environment`
+
+================================================================================
+11) Model promotion (`src/model/model_promotion.py`)
+================================================================================
+
+Inputs:
+- `reports/model_registration.json`
+- `reports/metrics.json`
+- `reports/retrain_signal.json`
+- `models/model.pkl`
+- champion baseline metadata in S3 (if present).
+
+Core decision flow:
+1. If `should_retrain=true`, skip promotion.
+2. Load candidate score from current metrics.
+3. Load current best score from S3.
+4. `should_promote(...)` decides based on metric direction and values.
+5. On promotion:
+   - assign champion alias to candidate
+   - archive/shift previous champion
+   - upload best model artifact + metadata to S3.
+6. Keep non-promoted model as challenger alias when configured.
+
+Key guarantee:
+- Exactly one champion per environment alias policy.
+
+================================================================================
+12) Inference app (`app/app.py`)
+================================================================================
+
+Startup behavior:
+1. Lifespan startup loads:
+   - `models/model.pkl`
+   - `models/feature_manifest.json`
+2. Caches artifacts in app state.
+
+Endpoints:
+- `GET /health`
+  - returns service readiness status.
+- `POST /predict`
+  - validates incoming rows against expected feature schema
+  - runs model pipeline prediction
+  - returns prediction and probability for each row.
+
+Example request (conceptual):
+- `[{"age": 42, "combined_text": "rear collision claim", ...}]`
+
+Example response (conceptual):
+- `[{"prediction": 1, "probability": 0.83}]`
+
+================================================================================
+13) Core utilities used across all stages
+================================================================================
+
+- `src/core/logger.py`
+  - centralized logging setup (file + console).
+- `src/core/exceptions.py`
+  - domain-specific exception classes (`DataValidationError`, `ModelBuildingError`, etc.).
+- `src/core/io.py`
+  - safe path joins and atomic writes for YAML/JSON/CSV.
+- `src/core/s3.py`
+  - S3 client creation and JSON/file upload/download helpers.
+- `src/core/settings.py`
+  - env resolution, YAML loading, deep merge, nested-key access.
+- `src/core/config_lint.py`
+  - contract + semantics validation before expensive stages run.
+
+================================================================================
+14) Reliability and maintainability guarantees in this design
+================================================================================
+
+1. Fail-fast validation before expensive compute (training, promotion).
+2. Configuration-driven logic (minimal hardcoded behavior in stage code).
+3. Atomic file writes to avoid partial artifacts.
+4. Clear stage boundaries and reproducibility via DVC.
+5. Promotion logic separated from registration logic.
+6. Text vectorization inside model pipeline to avoid leakage during CV.
+
+================================================================================
+15) Quick trace example (single record through pipeline)
+================================================================================
+
+Input raw row (simplified):
+- `incident_type="Single Vehicle Collision"`
+- `incident_description="Rear ended at signal, see http://..."`
+- `fraud_reported="Y"`
+
+After preprocessing/transformation:
+- normalized text fields, cleaned missing values, encoded target (`Y -> 1`).
+
+After feature engineering:
+- `combined_text="single vehicle collision rear ended at signal see"`
+- target retained as final column.
+
+During model building:
+- `combined_text` -> TF-IDF vector
+- categorical features -> one-hot
+- numeric features -> passthrough/scaling candidates
+- classifier predicts fraud probability.
+
+Final outputs:
+- model artifact (`models/model.pkl`)
+- performance artifacts (`reports/metrics.json`, diagnostics)
+- governance artifacts (drift, registration, promotion outputs).

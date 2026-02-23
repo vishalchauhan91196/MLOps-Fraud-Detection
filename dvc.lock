@@ -1,0 +1,304 @@
+schema: '2.0'
+stages:
+  data_ingestion:
+    cmd: python src/data/ingestion.py
+    deps:
+    - path: configs/environments/base.yaml
+      hash: md5
+      md5: fbc689a4ba436abe87b0228c1f6bf2b2
+      size: 5380
+    - path: configs/environments/dev.yaml
+      hash: md5
+      md5: 0bd09d161ac6c09803a9cc659a01eb74
+      size: 400
+    - path: configs/environments/prd.yaml
+      hash: md5
+      md5: 009ec530209c648d68b6740c324b87f2
+      size: 478
+    - path: configs/environments/uat.yaml
+      hash: md5
+      md5: 48908294f4e63cfb989ba740cb2728fa
+      size: 426
+    - path: src/core/config_lint.py
+      hash: md5
+      md5: 3aace219c39b9e0caa7223a3096df6df
+      size: 5483
+    - path: src/core/exceptions.py
+      hash: md5
+      md5: f2e902cf068a18f2f2214710f25168a0
+      size: 1645
+    - path: src/core/io.py
+      hash: md5
+      md5: 5c13724cad0c7d82d13d47374fac8ba1
+      size: 2533
+    - path: src/core/settings.py
+      hash: md5
+      md5: 172b5a6f2b11e769020dbce635921b57
+      size: 5074
+    - path: src/data/ingestion.py
+      hash: md5
+      md5: 18869a2e7cc98d1e28c7071712e0cca9
+      size: 3959
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: eb4892ed20b85f9bd83a2a8c829d9ad5.dir
+      size: 264863
+      nfiles: 2
+  data_validation:
+    cmd: python src/data/validation.py
+    deps:
+    - path: configs/environments/base.yaml
+      hash: md5
+      md5: fbc689a4ba436abe87b0228c1f6bf2b2
+      size: 5380
+    - path: configs/environments/dev.yaml
+      hash: md5
+      md5: 0bd09d161ac6c09803a9cc659a01eb74
+      size: 400
+    - path: configs/environments/prd.yaml
+      hash: md5
+      md5: 009ec530209c648d68b6740c324b87f2
+      size: 478
+    - path: configs/environments/uat.yaml
+      hash: md5
+      md5: 48908294f4e63cfb989ba740cb2728fa
+      size: 426
+    - path: configs/schemas/insurance_fraud.yaml
+      hash: md5
+      md5: ec62c0bd40b343eaa8f2e33c42d2d16a
+      size: 1657
+    - path: data/raw
+      hash: md5
+      md5: eb4892ed20b85f9bd83a2a8c829d9ad5.dir
+      size: 264863
+      nfiles: 2
+    - path: src/core/config_lint.py
+      hash: md5
+      md5: 3aace219c39b9e0caa7223a3096df6df
+      size: 5483
+    - path: src/core/exceptions.py
+      hash: md5
+      md5: f2e902cf068a18f2f2214710f25168a0
+      size: 1645
+    - path: src/core/io.py
+      hash: md5
+      md5: 5c13724cad0c7d82d13d47374fac8ba1
+      size: 2533
+    - path: src/core/settings.py
+      hash: md5
+      md5: 172b5a6f2b11e769020dbce635921b57
+      size: 5074
+    - path: src/data/validation.py
+      hash: md5
+      md5: 1f1fce1337a4f6bdd943a0597cc7457c
+      size: 11293
+    outs:
+    - path: reports/report.yaml
+      hash: md5
+      md5: 6e7f772a9695c3dafe4bfb6b69aae1ce
+      size: 184
+  data_preprocessing:
+    cmd: python src/data/preprocessing.py
+    deps:
+    - path: configs/environments/base.yaml
+      hash: md5
+      md5: fbc689a4ba436abe87b0228c1f6bf2b2
+      size: 5380
+    - path: configs/environments/dev.yaml
+      hash: md5
+      md5: 0bd09d161ac6c09803a9cc659a01eb74
+      size: 400
+    - path: configs/environments/prd.yaml
+      hash: md5
+      md5: 009ec530209c648d68b6740c324b87f2
+      size: 478
+    - path: configs/environments/uat.yaml
+      hash: md5
+      md5: 48908294f4e63cfb989ba740cb2728fa
+      size: 426
+    - path: data/raw
+      hash: md5
+      md5: eb4892ed20b85f9bd83a2a8c829d9ad5.dir
+      size: 264863
+      nfiles: 2
+    - path: reports/report.yaml
+      hash: md5
+      md5: 6e7f772a9695c3dafe4bfb6b69aae1ce
+      size: 184
+    - path: src/core/config_lint.py
+      hash: md5
+      md5: 3aace219c39b9e0caa7223a3096df6df
+      size: 5483
+    - path: src/core/exceptions.py
+      hash: md5
+      md5: f2e902cf068a18f2f2214710f25168a0
+      size: 1645
+    - path: src/core/io.py
+      hash: md5
+      md5: 5c13724cad0c7d82d13d47374fac8ba1
+      size: 2533
+    - path: src/core/settings.py
+      hash: md5
+      md5: 172b5a6f2b11e769020dbce635921b57
+      size: 5074
+    - path: src/data/preprocessing.py
+      hash: md5
+      md5: 4b4082f1aafd6b94d2d1dbef7db14e24
+      size: 12443
+    - path: src/data/transformation.py
+      hash: md5
+      md5: 0c18183ab821957fe99e62b580a2192f
+      size: 10320
+    outs:
+    - path: data/interim
+      hash: md5
+      md5: c732f1d17c0044bb947a765d177fd17e.dir
+      size: 257465
+      nfiles: 2
+  feature_engineering:
+    cmd: python src/feature/feature_engineering.py
+    deps:
+    - path: configs/environments/base.yaml
+      hash: md5
+      md5: fbc689a4ba436abe87b0228c1f6bf2b2
+      size: 5380
+    - path: configs/environments/dev.yaml
+      hash: md5
+      md5: 0bd09d161ac6c09803a9cc659a01eb74
+      size: 400
+    - path: configs/environments/prd.yaml
+      hash: md5
+      md5: 009ec530209c648d68b6740c324b87f2
+      size: 478
+    - path: configs/environments/uat.yaml
+      hash: md5
+      md5: 48908294f4e63cfb989ba740cb2728fa
+      size: 426
+    - path: data/interim
+      hash: md5
+      md5: c732f1d17c0044bb947a765d177fd17e.dir
+      size: 257465
+      nfiles: 2
+    - path: src/core/config_lint.py
+      hash: md5
+      md5: 3aace219c39b9e0caa7223a3096df6df
+      size: 5483
+    - path: src/core/exceptions.py
+      hash: md5
+      md5: f2e902cf068a18f2f2214710f25168a0
+      size: 1645
+    - path: src/core/io.py
+      hash: md5
+      md5: 5c13724cad0c7d82d13d47374fac8ba1
+      size: 2533
+    - path: src/core/settings.py
+      hash: md5
+      md5: 172b5a6f2b11e769020dbce635921b57
+      size: 5074
+    - path: src/feature/feature_engineering.py
+      hash: md5
+      md5: 1d6fc91d18cefa1b15e2d1a9e94a3f7b
+      size: 6330
+    outs:
+    - path: data/processed
+      hash: md5
+      md5: 2c0fbc0da07c63819e6682149c9f5187.dir
+      size: 255902
+      nfiles: 2
+    - path: models/feature_manifest.json
+      hash: md5
+      md5: d85d90967d7b1fdd3f06ef7e5d909441
+      size: 1235
+  model_building:
+    cmd: python src/model/model_building.py
+    deps:
+    - path: configs/environments/base.yaml
+      hash: md5
+      md5: fbc689a4ba436abe87b0228c1f6bf2b2
+      size: 5380
+    - path: configs/environments/dev.yaml
+      hash: md5
+      md5: 0bd09d161ac6c09803a9cc659a01eb74
+      size: 400
+    - path: configs/environments/prd.yaml
+      hash: md5
+      md5: 009ec530209c648d68b6740c324b87f2
+      size: 478
+    - path: configs/environments/uat.yaml
+      hash: md5
+      md5: 48908294f4e63cfb989ba740cb2728fa
+      size: 426
+    - path: data/processed
+      hash: md5
+      md5: 2c0fbc0da07c63819e6682149c9f5187.dir
+      size: 255902
+      nfiles: 2
+    - path: src/core/config_lint.py
+      hash: md5
+      md5: 3aace219c39b9e0caa7223a3096df6df
+      size: 5483
+    - path: src/core/exceptions.py
+      hash: md5
+      md5: f2e902cf068a18f2f2214710f25168a0
+      size: 1645
+    - path: src/core/io.py
+      hash: md5
+      md5: 5c13724cad0c7d82d13d47374fac8ba1
+      size: 2533
+    - path: src/core/settings.py
+      hash: md5
+      md5: 172b5a6f2b11e769020dbce635921b57
+      size: 5074
+    - path: src/core/transformers.py
+      hash: md5
+      md5: 0d739129cea22cd577a12a5bfd2ed977
+      size: 815
+    - path: src/model/model_building.py
+      hash: md5
+      md5: d288d484d3ee4725fed9ce62617c9d9c
+      size: 12284
+    outs:
+    - path: models/model.pkl
+      hash: md5
+      md5: 3ab665cb4c1668a4866c3339b1a0c020
+      size: 449332
+    - path: models/model_training_summary.json
+      hash: md5
+      md5: 738443380f5e11519c78b80c8c97f39d
+      size: 430
+  config_lint:
+    cmd: python src/core/config_lint.py
+    deps:
+    - path: configs/contracts/runtime_required.yaml
+      hash: md5
+      md5: fbbc0c556690f3679b23f26b2e4b672b
+      size: 4657
+    - path: configs/environments/base.yaml
+      hash: md5
+      md5: fbc689a4ba436abe87b0228c1f6bf2b2
+      size: 5380
+    - path: configs/environments/dev.yaml
+      hash: md5
+      md5: 0bd09d161ac6c09803a9cc659a01eb74
+      size: 400
+    - path: configs/environments/prd.yaml
+      hash: md5
+      md5: 009ec530209c648d68b6740c324b87f2
+      size: 478
+    - path: configs/environments/uat.yaml
+      hash: md5
+      md5: 48908294f4e63cfb989ba740cb2728fa
+      size: 426
+    - path: src/core/config_lint.py
+      hash: md5
+      md5: 3aace219c39b9e0caa7223a3096df6df
+      size: 5483
+    - path: src/core/exceptions.py
+      hash: md5
+      md5: f2e902cf068a18f2f2214710f25168a0
+      size: 1645
+    - path: src/core/settings.py
+      hash: md5
+      md5: 172b5a6f2b11e769020dbce635921b57
+      size: 5074

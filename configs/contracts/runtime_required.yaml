@@ -1,0 +1,167 @@
+required_keys:
+  - path: project.name
+    type: str
+  - path: data.source_file
+    type: str
+  - path: data.raw_dir
+    type: str
+  - path: data.interim_dir
+    type: str
+  - path: data.processed_dir
+    type: str
+  - path: data.reports_dir
+    type: str
+  - path: data.models_dir
+    type: str
+  - path: pipeline.random_state
+    type: int
+  - path: pipeline.target_column
+    type: str
+  - path: ingestion.test_size
+    type: float
+  - path: validation.schema_file
+    type: str
+  - path: validation.required_files
+    type: list
+  - path: validation.strict_column_match
+    type: bool
+  - path: validation.fail_on_extra_columns
+    type: bool
+  - path: validation.enforce_target_values
+    type: bool
+  - path: validation.target_allowed_values
+    type: list
+  - path: validation.null_tokens
+    type: list
+  - path: validation.max_duplicate_ratio
+    type: float
+  - path: validation.claim_total_mismatch_ratio
+    type: float
+  - path: validation.max_temporal_violation_ratio
+    type: float
+  - path: validation.critical_missing_thresholds
+    type: dict
+  - path: validation.numeric_bounds
+    type: dict
+  - path: preprocessing.placeholder_null_tokens
+    type: list
+  - path: preprocessing.drop_duplicates
+    type: bool
+  - path: preprocessing.drop_all_na_rows
+    type: bool
+  - path: preprocessing.normalize_binary_categories
+    type: bool
+  - path: preprocessing.apply_smoten
+    type: bool
+  - path: preprocessing.save_label_encoder
+    type: bool
+  - path: preprocessing.categorical_fill_value
+    type: str
+  - path: preprocessing.rename_columns_map
+    type: dict
+  - path: preprocessing.categorical_value_maps
+    type: dict
+  - path: transformation.text_columns
+    type: list
+  - path: transformation.lowercase
+    type: bool
+  - path: transformation.remove_urls
+    type: bool
+  - path: transformation.remove_non_alphanumeric
+    type: bool
+  - path: transformation.remove_stopwords
+    type: bool
+  - path: transformation.apply_lemmatization
+    type: bool
+  - path: transformation.nltk_download_if_missing
+    type: bool
+  - path: transformation.enrich_dates
+    type: bool
+  - path: feature_engineering.train_input_file
+    type: str
+  - path: feature_engineering.test_input_file
+    type: str
+  - path: feature_engineering.train_output_file
+    type: str
+  - path: feature_engineering.test_output_file
+    type: str
+  - path: feature_engineering.output_manifest_file
+    type: str
+  - path: feature_engineering.target_column
+    type: str
+  - path: feature_engineering.text_source_columns
+    type: list
+  - path: feature_engineering.combined_text_column
+    type: str
+  - path: feature_engineering.include_original_text_columns
+    type: bool
+  - path: model_building.train_input_file
+    type: str
+  - path: model_building.output_model_file
+    type: str
+  - path: model_building.training_summary_output_file
+    type: str
+  - path: model_building.pipeline
+    type: dict
+  - path: model_building.algorithms
+    type: list
+  - path: model_building.grid_search
+    type: dict
+  - path: model_evaluation.test_input_file
+    type: str
+  - path: model_evaluation.metrics_output_file
+    type: str
+  - path: model_evaluation.model_info_output_file
+    type: str
+  - path: model_evaluation.mlflow
+    type: dict
+  - path: drift_detection.reference_data_file
+    type: str
+  - path: drift_detection.current_data_file
+    type: str
+  - path: drift_detection.metrics_input_file
+    type: str
+  - path: drift_detection.output_report_file
+    type: str
+  - path: drift_detection.output_retrain_signal_file
+    type: str
+  - path: drift_detection.data_drift
+    type: dict
+  - path: drift_detection.concept_drift
+    type: dict
+  - path: drift_detection.model_drift
+    type: dict
+  - path: drift_detection.baseline
+    type: dict
+  - path: model_registration.model_info_input_file
+    type: str
+  - path: model_registration.registration_output_file
+    type: str
+  - path: model_registration.model_name
+    type: str
+  - path: model_registration.candidate_stage
+    type: str
+  - path: model_registration.mlflow
+    type: dict
+  - path: model_promotion.registration_input_file
+    type: str
+  - path: model_promotion.metrics_input_file
+    type: str
+  - path: model_promotion.retrain_signal_input_file
+    type: str
+  - path: model_promotion.model_name
+    type: str
+  - path: model_promotion.champion_stage
+    type: str
+  - path: model_promotion.archived_stage
+    type: str
+  - path: model_promotion.promotion_metric
+    type: str
+  - path: model_promotion.metric_higher_is_better
+    type: bool
+  - path: model_promotion.aliases
+    type: dict
+  - path: model_promotion.mlflow
+    type: dict
+  - path: model_promotion.s3
+    type: dict

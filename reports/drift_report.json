@@ -1,0 +1,26 @@
+{
+  "environment": "dev",
+  "data_drift": {
+    "status": false,
+    "drifted_feature_ratio": 0.0,
+    "drifted_feature_ratio_threshold": 0.3,
+    "drifted_features": []
+  },
+  "concept_drift": {
+    "status": false,
+    "reference_target_rate": 0.0,
+    "current_target_rate": 0.0,
+    "delta": 0.0,
+    "threshold": 0.05
+  },
+  "model_drift": {
+    "status": false,
+    "message": "No baseline metric available; treating as no model drift for bootstrap run",
+    "metric_name": "auc",
+    "current_metric": 0.0,
+    "baseline_metric": null,
+    "relative_drop": 0.0,
+    "relative_drop_threshold": 0.05
+  },
+  "should_retrain": false
+}

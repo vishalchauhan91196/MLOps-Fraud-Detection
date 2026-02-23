@@ -1,0 +1,175 @@
+stages:
+  config_lint:
+    cmd: python src/core/config_lint.py
+    deps:
+    - src/core/config_lint.py
+    - src/core/exceptions.py
+    - src/core/settings.py
+    - configs/contracts/runtime_required.yaml
+    - configs/environments/base.yaml
+    - configs/environments/dev.yaml
+    - configs/environments/uat.yaml
+    - configs/environments/prd.yaml
+
+  data_ingestion:
+    cmd: python src/data/ingestion.py
+    deps:
+    - src/core/config_lint.py
+    - src/core/exceptions.py
+    - src/core/io.py
+    - src/core/settings.py
+    - src/data/ingestion.py
+    - configs/environments/base.yaml
+    - configs/environments/dev.yaml
+    - configs/environments/uat.yaml
+    - configs/environments/prd.yaml
+    outs:
+    - data/raw
+
+  data_validation:
+    cmd: python src/data/validation.py
+    deps:
+    - src/core/config_lint.py
+    - data/raw
+    - src/core/exceptions.py
+    - src/core/io.py
+    - src/core/settings.py
+    - src/data/validation.py
+    - configs/schemas/insurance_fraud.yaml
+    - configs/environments/base.yaml
+    - configs/environments/dev.yaml
+    - configs/environments/uat.yaml
+    - configs/environments/prd.yaml
+    outs:
+    - reports/report.yaml
+
+  data_preprocessing:
+    cmd: python src/data/preprocessing.py
+    deps:
+    - src/core/config_lint.py
+    - data/raw
+    - reports/report.yaml
+    - src/core/exceptions.py
+    - src/core/io.py
+    - src/core/settings.py
+    - src/data/preprocessing.py
+    - src/data/transformation.py
+    - configs/environments/base.yaml
+    - configs/environments/dev.yaml
+    - configs/environments/uat.yaml
+    - configs/environments/prd.yaml
+    outs:
+    - data/interim
+
+  feature_engineering:
+    cmd: python src/feature/feature_engineering.py
+    deps:
+    - src/core/config_lint.py
+    - data/interim
+    - src/core/exceptions.py
+    - src/core/io.py
+    - src/core/settings.py
+    - src/feature/feature_engineering.py
+    - configs/environments/base.yaml
+    - configs/environments/dev.yaml
+    - configs/environments/uat.yaml
+    - configs/environments/prd.yaml
+    outs:
+    - data/processed
+    - models/feature_manifest.json
+
+  model_building:
+    cmd: python src/model/model_building.py
+    deps:
+    - src/core/config_lint.py
+    - data/processed
+    - src/core/exceptions.py
+    - src/core/io.py
+    - src/core/settings.py
+    - src/core/transformers.py
+    - src/model/model_building.py
+    - configs/environments/base.yaml
+    - configs/environments/dev.yaml
+    - configs/environments/uat.yaml
+    - configs/environments/prd.yaml
+    outs:
+    - models/model.pkl
+    - models/model_training_summary.json
+
+  model_evaluation:
+    cmd: python src/model/model_evaluation.py
+    deps:
+    - src/core/config_lint.py
+    - models/model.pkl
+    - src/core/exceptions.py
+    - src/core/io.py
+    - src/core/settings.py
+    - src/model/model_evaluation.py
+    - configs/environments/base.yaml
+    - configs/environments/dev.yaml
+    - configs/environments/uat.yaml
+    - configs/environments/prd.yaml
+    metrics:
+    - reports/metrics.json
+    outs:
+    - reports/experiment_model_info.json
+    - reports/evaluation_diagnostics.json
+
+  drift_detection:
+    cmd: python src/drift_detection/run.py
+    deps:
+    - src/core/config_lint.py
+    - src/core/exceptions.py
+    - src/core/io.py
+    - src/core/s3.py
+    - src/core/settings.py
+    - src/drift_detection/run.py
+    - src/drift_detection/common.py
+    - src/drift_detection/data_drift.py
+    - src/drift_detection/concept_drift.py
+    - src/drift_detection/model_drift.py
+    - data/processed
+    - reports/metrics.json
+    - configs/environments/base.yaml
+    - configs/environments/dev.yaml
+    - configs/environments/uat.yaml
+    - configs/environments/prd.yaml
+    outs:
+    - reports/drift_report.json
+    - reports/retrain_signal.json
+
+  model_registration:
+    cmd: python src/model/register_model.py
+    deps:
+    - src/core/config_lint.py
+    - reports/experiment_model_info.json
+    - src/core/exceptions.py
+    - src/core/io.py
+    - src/core/settings.py
+    - src/model/register_model.py
+    - configs/environments/base.yaml
+    - configs/environments/dev.yaml
+    - configs/environments/uat.yaml
+    - configs/environments/prd.yaml
+    outs:
+    - reports/model_registration.json
+
+  model_promotion:
+    cmd: python src/model/model_promotion.py
+    deps:
+    - src/core/config_lint.py
+    - reports/model_registration.json
+    - reports/metrics.json
+    - reports/retrain_signal.json
+    - models/model.pkl
+    - src/core/exceptions.py
+    - src/core/io.py
+    - src/core/s3.py
+    - src/core/settings.py
+    - src/model/model_promotion.py
+    - configs/environments/base.yaml
+    - configs/environments/dev.yaml
+    - configs/environments/uat.yaml
+    - configs/environments/prd.yaml
+
+

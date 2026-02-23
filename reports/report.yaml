@@ -1,0 +1,8 @@
+environment: dev
+validation_status: true
+message: Validation succeeded
+details:
+  train.csv:
+  - 'train.csv: validation passed.'
+  test.csv:
+  - 'test.csv: validation passed.'

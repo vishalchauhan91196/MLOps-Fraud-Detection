@@ -1,0 +1,23 @@
+﻿ingestion:
+  test_size: 0.30
+
+validation:
+  fail_on_extra_columns: false
+
+preprocessing:
+  apply_smoten: false
+
+model_evaluation:
+  mlflow:
+    enabled: true
+    tracking_uri: http://dev.mlflow.beazley.com
+
+model_registration:
+  mlflow:
+    enabled: true
+    tracking_uri: http://dev.mlflow.beazley.com
+
+model_promotion:
+  mlflow:
+    enabled: true
+    tracking_uri: http://dev.mlflow.beazley.com

@@ -1,0 +1,16 @@
+{
+    "selection_metric": "roc_auc",
+    "selected_algorithm": "xgboost",
+    "selected_cv_score": 0.8382477972321004,
+    "candidates": [
+        {
+            "algorithm": "xgboost",
+            "best_cv_score": 0.8382477972321004,
+            "best_params": {
+                "scaler": "passthrough",
+                "clf__min_child_weight": 3,
+                "clf__max_depth": 6
+            }
+        }
+    ]
+}

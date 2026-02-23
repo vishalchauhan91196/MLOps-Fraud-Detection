@@ -1,0 +1,28 @@
+ingestion:
+  test_size: 0.20
+
+validation:
+  fail_on_extra_columns: true
+  max_duplicate_ratio: 0.005
+
+preprocessing:
+  apply_smoten: false
+
+transformation:
+  nltk_download_if_missing: false
+
+model_evaluation:
+  mlflow:
+    enabled: true
+    tracking_uri: http://prd.mlflow.beazley.com
+
+model_registration:
+  mlflow:
+    enabled: true
+    tracking_uri: http://prd.mlflow.beazley.com
+
+model_promotion:
+  mlflow:
+    enabled: true
+    tracking_uri: http://prd.mlflow.beazley.com
+
